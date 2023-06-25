@@ -1,0 +1,25 @@
+cp -rp /scratch/work/public/overlay-fs-ext3/overlay-50G-10M.ext3.gz .
+cp -rp /scratch/work/public/overlay-fs-ext3/overlay-15GB-500K.ext3.gz .
+gunzip overlay-50G-10M.ext3.gz
+
+singularity exec --overlay overlay-50G-10M.ext3:rw /scratch/work/public/singularity/cuda11.8.86-cudnn8.7-devel-ubuntu22.04.2.sif /bin/bash
+singularity exec --overlay overlay-15GB-500k.ext3:rw /scratch/work/public/singularity/cuda11.8.86-cudnn8.7-devel-ubuntu22.04.2.sif /bin/bash
+
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p /ext3/miniconda3
+
+touch /ext3/env.sh
+vim /ext3/env.sh
+
+> Input in the following
+#!/bin/bash
+
+source /ext3/miniconda3/etc/profile.d/conda.sh
+export PATH=/ext3/miniconda3/bin:$PATH
+export PYTHONPATH=/ext3/miniconda3/bin:$PATH
+
+source /ext3/env.sh
+
+conda update -n base conda -y
+conda clean --all --yes
+conda install pip -y

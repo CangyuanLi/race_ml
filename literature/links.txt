@@ -1,0 +1,2 @@
+https://github.com/nkotova/MLprojects/blob/main/RNN_predict_race_name_and_location.ipynb
+https://www.askpython.com/python/examples/predict-nationality-using-names
