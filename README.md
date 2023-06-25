@@ -29,7 +29,6 @@ an embedding layer. It's hyperparameters are:
 Here is a comparison of the model with available packages:
 
 **pyethnicity**
-
 ┌──────────┬──────────┬───────────┬─────────┬──────────┬──────────┬─────────┐
 │ race     ┆ accuracy ┆ precision ┆ recall  ┆ f1_score ┆ fpr      ┆ support │
 │ ---      ┆ ---      ┆ ---       ┆ ---     ┆ ---      ┆ ---      ┆ ---     │
