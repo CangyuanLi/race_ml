@@ -171,13 +171,23 @@ def test_ethnicolr(
     if not overwrite:
         return pl.read_parquet(outpath)
 
-    eth_pred = ethnicolr.pred_census_ln(
-        pd_df[["last_name"]], lname_col="last_name", year=2010
+    eth_pred = ethnicolr.pred_fl_reg_name(
+        pd_df[["first_name", "last_name"]],
+        lname_col="last_name",
+        fname_col="first_name",
     )
     eth_pred["last_name"] = eth_pred["last_name"].str.lower()
+    eth_pred["first_name"] = eth_pred["first_name"].str.lower()
     eth_pred = eth_pred.rename(columns={"api": "asian"})
     eth_pred.columns = [f"eth_{col}" for col in eth_pred.columns]
-    eth_pred = eth_pred.rename(columns={"eth_last_name": "last_name"})
+    eth_pred = eth_pred.rename(
+        columns={
+            "eth_last_name": "last_name",
+            "eth_first_name": "first_name",
+            "eth_nh_black": "eth_black",
+            "eth_nh_white": "eth_white",
+        }
+    )
     df = pl.from_pandas(eth_pred)
 
     df.write_parquet(outpath)
@@ -629,7 +639,7 @@ def test_flz():
     )
 
     preds = (
-        df.join(eth, on="last_name", how="left")
+        df.join(eth, on=["first_name", "last_name"], how="left")
         .join(reth, on=["first_name", "last_name"], how="left")
         .join(bisg, on="index", how="left")
         .join(bifsg, on="index", how="left")
@@ -657,7 +667,7 @@ def test_flz():
     ensemble_adapt_stats = calculate_stats(preds, "ensemble_adapt")
     model_stats = calculate_stats(preds, "flz_embed_bi")
 
-    print(eth_stats.max)
+    print(model_stats.max.to_pandas().to_markdown())
 
 
 def main():
