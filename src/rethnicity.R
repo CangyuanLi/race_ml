@@ -33,6 +33,6 @@ make_preds <- function(inpath, outpath) {
 }
 
 # make_preds("flz_test_sample.parquet", "flz_reth_preds.parquet")
-# make_preds("ppp_test_sample.parquet", "ppp_reth_preds.parquet")
-make_preds("lendio_ppp_sample.parquet", "lendio_ppp_reth_preds.parquet")
+make_preds("ppp_test_sample.parquet", "ppp_reth_preds.parquet")
+# make_preds("lendio_ppp_sample.parquet", "lendio_ppp_reth_preds.parquet")
 # make_preds("fl_test_sample.parquet", "fl_reth_preds.parquet")
