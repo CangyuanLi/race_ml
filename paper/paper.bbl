@@ -1,0 +1,113 @@
+\begin{thebibliography}{15}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Brown et~al.(2016)Brown, Knapp, Baker, and Kaufmann]{brown2016}
+D.~P. Brown, C.~Knapp, K.~Baker, and M.~Kaufmann.
+\newblock Using bayesian imputation to assess racial and ethnic disparities in
+  pediatric performance measures.
+\newblock \emph{Health Services Research}, 2016.
+\newblock \doi{https://doi.org/10.1111/1475-6773.12405}.
+
+\bibitem[Bureau(2014)]{cfpb2014}
+C.~F.~P. Bureau.
+\newblock Using publicly available information to proxy for unidentified race
+  and ethnicity.
+\newblock Technical report, Consumer Finance Protection Bureau, 2014.
+
+\bibitem[Census(2022)]{racedefs}
+Census.
+\newblock Census bureau race definitions.
+\newblock \url{https://www.census.gov/topics/population/race/about.html}, 2022.
+
+\bibitem[Clifford et~al.(2023)Clifford, Gerken, and Qiu]{clifford2023}
+C.~P. Clifford, W.~C. Gerken, and T.~Qiu.
+\newblock Racial concordance in the market for financial advice.
+\newblock \emph{The Review of Corporate Finance Studies}, 2023.
+
+\bibitem[Comenetz(2016)]{census2010surnames}
+J.~Comenetz.
+\newblock
+  \url{https://www2.census.gov/topics/genealogy/2010surnames/surnames.pdf},
+  2016.
+
+\bibitem[Elliot et~al.(2009)Elliot, Morrison, Fremont, McCaffrey, Pantoja, and
+  Lurie]{elliot2009}
+M.~N. Elliot, P.~A. Morrison, A.~Fremont, D.~F. McCaffrey, P.~Pantoja, and
+  N.~Lurie.
+\newblock Using the census bureau’s surname list to improve estimates of
+  race/ethnicity and associated disparities.
+\newblock \emph{Health Services and Outcomes Research Methodology}, 2009.
+\newblock \doi{https://doi.org/10.1007/s10742-009-0047-1}.
+
+\bibitem[Frame et~al.(2022)Frame, Huang, Mayer, and Sunderam]{frame2022}
+W.~S. Frame, R.~Huang, E.~J. Mayer, and A.~Sunderam.
+\newblock The impact of minority representation at mortgage lenders.
+\newblock Working Paper 30125, National Bureau of Economic Research, June 2022.
+\newblock URL \url{http://www.nber.org/papers/w30125}.
+
+\bibitem[Graves and Schmidhuber(2005)]{graves2005}
+A.~Graves and J.~Schmidhuber.
+\newblock Framewise phoneme classification with bidirectional lstm and other
+  neural network architectures.
+\newblock \emph{Neural Networks}, 18\penalty0 (5):\penalty0 602--610, 2005.
+\newblock ISSN 0893-6080.
+\newblock \doi{https://doi.org/10.1016/j.neunet.2005.06.042}.
+\newblock URL
+  \url{https://www.sciencedirect.com/science/article/pii/S0893608005001206}.
+\newblock IJCNN 2005.
+
+\bibitem[Hu et~al.(2021)Hu, Hu, Tran, Kasturi, Joseph, and Gillingham]{hu2021}
+Y.~Hu, C.~Hu, T.~Tran, T.~Kasturi, E.~Joseph, and M.~Gillingham.
+\newblock What's in a name? - gender classification of names with character
+  based machine learning models.
+\newblock \emph{CoRR}, abs/2102.03692, 2021.
+\newblock URL \url{https://arxiv.org/abs/2102.03692}.
+
+\bibitem[Kotova(2021)]{kotova2021}
+N.~Kotova.
+\newblock A deep learning approach to predicting race using personal name and
+  location (natural language processing).
+\newblock 2021.
+
+\bibitem[Sood and Laohaprapanon(2018)]{sood2018}
+G.~Sood and S.~Laohaprapanon.
+\newblock Predicting race and ethnicity from the sequence of characters in a
+  name, 2018.
+
+\bibitem[Tzioumis(2018)]{tzioumis2018}
+K.~Tzioumis.
+\newblock Demographic aspects of first names.
+\newblock \emph{Scientific Data}, \penalty0 (180025), 2018.
+
+\bibitem[Voicu(2018)]{voicu2018}
+I.~Voicu.
+\newblock Using first name information to improve race and ethnicity
+  classification.
+\newblock \emph{Statistics and Public Policy}, 5\penalty0 (1):\penalty0 1--13,
+  2018.
+\newblock \doi{10.1080/2330443X.2018.1427012}.
+\newblock URL \url{https://doi.org/10.1080/2330443X.2018.1427012}.
+
+\bibitem[Xie(2022)]{fang2022}
+F.~Xie.
+\newblock rethnicity: An r package for predicting ethnicity from names.
+\newblock \emph{SoftwareX}, 17:\penalty0 100965, 2022.
+\newblock ISSN 2352-7110.
+\newblock \doi{https://doi.org/10.1016/j.softx.2021.100965}.
+\newblock URL
+  \url{https://www.sciencedirect.com/science/article/pii/S2352711021001874}.
+
+\bibitem[Zhang et~al.(2015)Zhang, Zhao, and LeCun]{zhang2015}
+X.~Zhang, J.~Zhao, and Y.~LeCun.
+\newblock Character-level convolutional networks for text classification.
+\newblock In C.~Cortes, N.~Lawrence, D.~Lee, M.~Sugiyama, and R.~Garnett,
+  editors, \emph{Advances in Neural Information Processing Systems}, volume~28.
+  Curran Associates, Inc., 2015.
+\newblock URL
+  \url{https://proceedings.neurips.cc/paper_files/paper/2015/file/250cf8b51c773f3f8dc8b4be867a9a02-Paper.pdf}.
+
+\end{thebibliography}

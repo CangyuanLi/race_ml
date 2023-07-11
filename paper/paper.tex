@@ -1,0 +1,313 @@
+\documentclass[12pt]{article}
+
+\usepackage{
+    amsfonts,
+    amsmath,
+    amssymb,
+    array,
+    booktabs,
+    caption,
+    caption,
+    color,
+    comment,
+    eurosym,
+    float,
+    footmisc,
+    geometry,
+    graphicx,
+    hyperref,
+    natbib,
+    pdflscape,
+    sectsty,
+    setspace,
+    subfigure,
+    ulem,
+}
+
+\normalem
+
+\onehalfspacing
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}{Proposition}
+\newenvironment{proof}[1][Proof]{\noindent\textbf{#1.} }{\ \rule{0.5em}{0.5em}}
+
+\newtheorem{hyp}{Hypothesis}
+\newtheorem{subhyp}{Hypothesis}[hyp]
+\renewcommand{\thesubhyp}{\thehyp\alph{subhyp}}
+
+\newcommand{\red}[1]{{\color{red} #1}}
+\newcommand{\blue}[1]{{\color{blue} #1}}
+
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\arraybackslash\hspace{0pt}}m{#1}}
+
+\geometry{left=1.0in,right=1.0in,top=1.0in,bottom=1.0in}
+
+\begin{document}
+
+\begin{titlepage}
+\title{Can We Trust Race Prediction?}
+\author{Cangyuan Li}
+\date{\today}
+\maketitle
+\begin{abstract}
+    \noindent 
+
+    In the absence of sensitive race and ethnicity data, researchers, regulators, and firms alike turn to proxies. In this paper, 
+    I construct the most comprehensive database of first and surname distributions in the US in order to improve the coverage and accuracy of Bayesian Improved Surname Geocoding (BISG) and Bayesian Improved Firstname Surname Geocoding (BIFSG). Then, I present an ensemble model that, to the best of my knowledge, outperforms existing solutions, including BISG or BIFSG alone. The ensemble has greater than 90\% accuracy for all classes and achieves higher precision, recall, and F1 scores than the literature, especially for minority classes. The ensemble consists of BISG, BIFSG, and a Bidirectional Long Short-Term Memory (LSTM) model trained on a novel dataset of voter registration data from all 50 US states. Finally, I seek to place a rough upper bound on the performance of models that rely only on name and location data by investigating the most ideal case--a simple lookup table.
+
+    % I also provide an additional novel data source in cleaned PPP data. Pretty sure
+    % no other models use this data for training. And since it is a national sample, albeit
+    % biased, and no other model uses it, it is ideal to validate the performance of all
+    % the models on an equal footing.
+
+    % Future plans: Investigate why certain samples respond poorly to race prediction.
+    % by income? zip code?
+    
+    % Also, think about race prediction in the best case (from name and location). The
+    % best case is a lookup table where you count the number of people in that location 
+    % with that name and calculate the percent asian, black, etc. 
+    % Can do this fairly because you can create the lookup table
+    % with voter data and test against PPP.
+
+    \vspace{0in}
+    \noindent\textbf{Keywords:} key1, key2, key3 \\
+    \vspace{0in}
+    \noindent\textbf{JEL Codes:} key1, key2, key3 \\
+
+    \bigskip
+\end{abstract}
+\setcounter{page}{0}
+\thispagestyle{empty}
+\end{titlepage}
+\pagebreak \newpage
+
+\doublespacing
+
+
+\section{Introduction} \label{sec:introduction}
+
+Race prediction has wide applications across a diverse range of fields, from lending to criminal justice to healthcare.
+As race and ethnicity are sensitive pieces of information, many datasets, public and private, do not have access to
+``true'' race, and must therefore rely on proxies. For example, the Consumer Finance Protection Bureau (CFPB) uses BISG (name and zip code) in their fair lending analysis \cite{cfpb2014}. Race prediction is essential to research involving racial outcomes, such as in \citep{brown2016,frame2022,clifford2023}. As such, an accurate proxy for race is paramount. However, data availability and
+generalizability are important considerations as well. Even in the absence of self-reported race, much better models exist. Image-based models such as Facenet512 achieve accuracies above 99\%, even better than humans (~98\%). Furthermore, it is likely that additional or more granular features beyond the most generally available (name and zip code), such as income and address, would greatly improve accuracy. In this paper, I seek to place a rough upper bound on the performance of models that use only name and geography. First, I obtain a nationally representative corpus of names and zip code tabulation areas (ZCTAs) from L2 voter registration data. Additionally, I use public Paycheck Protection Program (PPP) data to create a clean dataset to validate against. To the best of my knowledge, no model incorporates this data into their training set, allowing me to conduct the fairest possible horse race. I then train a Bidirectional LSTM on the L2 data and show that it achieves higher precision, recall, and F1, than existing models. Then, I provided expanded first and last name tables for BISG and BIFSG, and show that an ensemble model outperforms any algorithm alone. Finally, I use the L2 data to create a lookup table and assess the performance of name and geography in the most ideal case.
+
+\subsection{Definitions}
+
+Throughout the paper, I use several metrics to assess the performance of different models. For each class, I calculate the number of True Positives (e.g. the predicted and self-reported races are both Asian), True Negatives (e.g. the predicted race is not Asian and the self-reported race is not Asian), False Positives (e.g. the predicted race is Asian but the self-reported race is not Asian), and False Negatives (e.g. the predicted race is not Asian but the self-reported race is Asian). Since each model returns the probability a person is of a certain race, I determine the predicted race by taking the maximum of the probabilities, which I call ``Max''. The following table provides a summary of the metrics used.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}ccc@{}}
+    \toprule
+    Metric   & Formula   & Interpretation                                    \\ \midrule
+    Accuracy & \( \frac{TP + TN}{TP + TN + FP + FN} \) & Ratio of correct predictions to total predictions \\
+    Precision & \( \frac{TP}{TP + FP}  \) & Percent of correct positive predictions \\
+    Recall & \( \frac{TP}{TP + FN} \) & Percent of actual positives identified \\
+    F1 Score & \( \frac{2 \times Precision \times Recall}{Precision + Recall} \) & Harmonic mean of precision and recall \\
+    Support & & The number of samples that have a valid prediction \\
+    Coverage & & The percentage of samples that have a valid prediction \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Literature Review} \label{sec:literature}
+
+This paper contributes to the race prediction literature, both in terms of model development and evaluation. \cite{sood2018} and \cite{fang2022} both use Florida voter registration data to train an LSTM to predict race from first and last name. \cite{voicu2018} improves upon the BISG algorithm introduced by \cite{elliot2009} by adding first name data. This paper's key contributions are to significantly improve the coverage and accuracy of BIFSG, provide a state-of-the-art machine learning model to fill in the gaps left by BIFSG, and make available a clean, nationally representative dataset for model developers to benchmark against.
+
+\section{Data} \label{sec:data}
+
+\subsection{L2}
+
+I source 2023 voter data from L2, one of the leading providers of voter data in the US. The data spans 58 US states / territories, representing 32,034 out of 33,121 (96.7\%) unique ZCTAs. I filter to the four major race / ethnicity categories: Non-Hispanic Asian, Non-Hispanic Black, Hispanic, and Non-Hispanic White. When self-reported race is not directly available, I use the ethnicity field, and follow the guidelines used by the Office of Management and Budget and the Census Bureau. For example, ``White'' includes people who report their ethnicity as German, Irish, English, etc, whereas ``Asian'' includes people who originate from countries such as China, India, and Japan \cite{racedefs}. Table \ref{tab:l2_racial_distribution} provides a breakdown.
+
+\begin{table}[h]
+    \caption{L2 Racial Distribution}
+    \label{tab:l2_racial_distribution}
+    \centering
+    \input{tables/l2_race_counts.tex}
+\end{table}
+
+\subsection{PPP}
+
+I use US Paycheck Protection Program (PPP) data to build a nationally representative database of name, geography (zip code), and self-reported race. I begin with a dataset of 11,460,475 loans spanning April 3, 2020 to May 31, 2021 and subset to the 1,211,770 name / zip pairs that both self-report race and are person names. Non-person names are removed using custom list of ~1,000 filter words, such as ``llc'', ``installation'', and so on. The final dataset represents 1,066,605 unique first name / last name / ZCTA triplets, 27,702 out of 33,121 (84.6\%) ZCTAs, and 57 states / territories.
+
+Conducting a fair horse race is harder than it may first appear. The ultimate goal of these models is to perform in a ``real-world'' setting. However, there are many equally valid ``real-world'' settings, and model performance can oscillate wildly between different distributions. For example, there is often significant overlap between Black and White names. A name such as ``Dorothy Brown'' encodes very little information about whether that person is Black or White, even to a human. Therefore, if Model X overpredicts Black, it would perform well on a sample where Black is the majority class, but would exhibit high false positive rates on a sample that is majority White. To address this issue, I assume that the target distribution roughly reflects the US population, and draw a nationally representative sample of 200,000 observations\footnote{I use the July 1, 2022, population estimates from \url{https://www.census.gov/quickfacts/fact/table/US/PST045222}--Asian: 5.9\%, Black: 12.6\%, Hispanic: 18.9\%, White: 59.3\%.}. Table \ref{tab:ppp_racial_distribution} provides a breakdown.
+
+\begin{table}[h]
+    \caption{PPP Racial Distribution}
+    \label{tab:ppp_racial_distribution}
+    \centering
+    \input{tables/ppp_race_counts.tex}
+\end{table}
+
+
+\section{Models}
+
+\subsection{BISG} \label{subsec:bisg}
+
+The canonical version of BISG, developed by the Rand Corporation in 2009, calculates the probability a person is of a certain race as
+
+\begin{align*}
+    P(r | s, g) = \frac{P(r | s) \times P(g | r)}{\sum_{r=1}^{6} P(r | s) \times P(g | r)}
+\end{align*} 
+
+where \( r \) is one of  American Indian or Alaska Native, Asian or Pacific Islander, Black, Hispanic, or Multiracial, \( s \) denotes surname, and \( g \) denotes geography. For the purposes of this paper, the geography is at the ZCTA level, although it can be defined at the census block, census tract, county, and state levels as well. \( P(g | r) \) is the percentage of people of a certain race that live in the specified geography. \( P(r | s) \) is defined as the percentage of people with a given surname that are of that race, and is calculated from the 2010 US census. The Census surname table comprises all surnames that appear more than 100 times, and yields 162,254 unique surnames covering 90\% of the US population \cite{census2010surnames}. To improve coverage, I update the table with probabilities calculated from the L2 voter data, preferring the Census values if they exist. Since the L2 data is highly imbalanced, I draw a nationally representative sample, otherwise the probabilities would be artificially biased towards the majority classes. Additionally, I only consider the four major racial categories, allowing me to have substantially more observations.
+When building the table, I follow \cite{tzioumis2018} by deleting suffixes such as ``JR'', names that are only one character long, deleting blanks and hyphens, and only considering names that either have 30 or more observations or names that have 15-29 observations and represent one and only one race. I refer to this combined version as ``iBISG.'' Tables \ref{t:bisg_stats_max} and \ref{t:ibisg_stats_max} summarize their performances.
+
+\begin{table}[H]
+    \caption{BISG Stats (Max)}
+    \label{t:bisg_stats_max}
+    \centering
+    \include{tables/bisg_stats_max.tex}
+\end{table}
+
+\begin{table}[H]
+    \caption{iBISG Stats (Max)}
+    \label{t:ibisg_stats_max}
+    \centering
+    \include{tables/ibisg_stats_max.tex}
+\end{table}
+
+iBISG shows modest improvements in coverage while showing virtually unchanged performance. That performance does not change is not surprising--the Census Bureau should have the highest quality data and the most observations to work with.
+
+\subsection{BIFSG} \label{subsec:bifsg}
+
+\cite{voicu2018} offers an extension of BISG in BIFSG, a similar algorithm that incorporates first name data. BIFSG calculates the probability a person is of a certain race as
+
+\begin{align*}
+    P(r | s, f, g) = \frac{P(r | s) \times P(f | r) \times P(g | r)}{\sum_{r=1}^{6} P(r | s) \times P(f | r) \times P(g | r)}
+\end{align*}
+
+All variables are defined in the same way as in BISG. The first name data comes from \cite{tzioumis2018}, who uses Home Mortgage Disclosure Act (HMDA) data. I run the same routine as above to create the first name table from L2 voter data. Since the HMDA data has fewer observations, I prefer the L2 values if they exist. I refer to this combined version as ``iBIFSG.'' Tables \ref{t:bifsg_stats_max} and \ref{t:ibifsg_stats_max} summarize their performances.
+
+
+\begin{table}[H]
+    \caption{BIFSG Stats (Max)}
+    \label{t:bifsg_stats_max}
+    \centering
+    \include{tables/bifsg_stats_max.tex}
+\end{table}
+
+\begin{table}[H]
+    \caption{iBIFSG Stats (Max)}
+    \label{t:ibifsg_stats_max}
+    \centering
+    \include{tables/ibifsg_stats_max.tex}
+\end{table}
+
+In this case, iBIFSG shows significant improvements in coverage across all classes, with the greatest gains coming from minority classes. In particular, iBIFSG achieves a 12.5\% increase in F1 Score and a 46.6\% increase in coverage compared to BIFSG for Black, traditionally one of the hardest to predict classes. The gains are mainly due to increased recall. That is to say iBIFSG correctly identifies 76.6\% of all Black borrowers in the sample, compared to just 61.6\% for BIFSG.
+
+\subsection{LSTM}
+
+While iBIFSG shows good performance, and already represents a significant step forward in terms of coverage, it still struggles with missing data. Furthermore, names that do not appear in the probability files algorithms such as BISG and BIFSG rely on often are correlated with nationality. For example, many African and Eastern European names, such as ``Jurczewsky'', ``Semuyaba'', and ``Ng'ethe'', to name a few, do not appear in the files. Users relying on such algorithms may be systemically excluding certain groups from their sample. Therefore, I train a Bidirectional LSTM to address these gaps. Bidirectional LSTMs add a backward layer to a regular LSTM where the information is reversed, and have been shown to be able to better capture the context of text \cite{graves2005}. The base model was trained using Keras and consists of an embedding layer with an embedding dimension of 256, four LSTM layers with hidden size 512 and a dropout rate of 0.2, and a final dense layer with softmax activation. I use the Adam optimizer with .001 learning rate, and character-encode names before passing them to the embedding layer. Character-level features work well with neural networks since they are good at extracting information from raw data \cite{zhang2015}.
+
+Before training, I undersample the dataset so that each class has an equal number of observations. In comparison, an imbalanced dataset could lead the model to optimize by simply predicting the majority class (White) most of the time. To the best of my knowledge, the resulting model has better performance than existing models in the literature. For example, my model achieves a F1 score of 0.639 for Black, compared to 0.552 for \cite{sood2018}, 0.513 for \cite{fang2022}, and 0.47 for \cite{kotova2021}. A full comparison against \cite{sood2018} (ethnicolr) and \cite{fang2022} (rethnicity) on the aforementioned PPP test sample can be found in tables \ref{t:eth_stats_max} and \ref{t:reth_stats_max}\footnote{\cite{kotova2021} does not have an associated open-source package to test against.}. Importantly, the errors the model makes seem to be ``reasonable''--one could imagine a human making the same mistake with the same information. For example, the model gets ``Felicia Gray'', ``Barbara Middleton'', and ``Karen Ross'' wrong, who all self-report as Asian. Similarly, the model predicts ``Surinder Kaur'', ``Balbir Ghandi'', and ``Tu Vuong'' as Asian, but they self-report as White.
+
+\begin{table}[H]
+    \caption{First-Last Stats (Max)}
+    \label{t:fl_stats_max}
+    \centering
+    \include{tables/fl_stats_max.tex}
+\end{table}
+
+Location also encodes important information. While more granular location data would be ideal (such as census tract or even address), the most common models typically use zip code, as it is the most readily available. Instead of adding location features to the model, which may not be portable (if, for example, the racial distribution of a ZCTA changes drastically in the future, or a user wants to use tract-level data), I use the following equation:
+
+\begin{align*}
+    P(r | n, g) = \frac{P(r | n) \times P(g | r)}{\sum_{r=1}^{4} P(r | n) \times P(g | r)}
+\end{align*},
+
+where \( n \) is name, and \( P(r | n) \) are the probabilities returned by the aforementioned name-only model. The other terms are exactly as in BISG. The resulting model achieves similar results for Asian and Hispanic, but makes a significant leap for Black (a 17\% increase in F1 score) and a modest gain for White (a 3\% increase in F1 score). This makes sense, as Black and White names are the most likely to be confused for each other, and is where location features can make the most difference. For instance, a person with the surname ``Li'' is likely Asian regardless of location, and indeed location may even just add noise in such cases.
+
+\begin{table}[H]
+    \caption{First-Last-ZCTA Stats (Max)}
+    \label{t:flz_bayes_stats_max}
+    \centering
+    \include{tables/fl_bayes_stats_max.tex}
+\end{table}
+
+\subsection{Ensemble}
+
+In this section, I present a simple ensemble model that maximizes coverage while maintaining high performance. I take the weighted average of the predictions made by iBIFSG, iBISG, and First-Last-ZCTA, assigning equal weight to each model that is able to make a prediction. Table \ref{t:ensemble_stats_max} reports the performance.
+
+\begin{table}[H]
+    \caption{Ensemble Stats (Max)}
+    \label{t:ensemble_stats_max}
+    \centering
+    \include{tables/ensemble_stats_max.tex}
+\end{table}
+
+The ensemble reports higher F1 scores across the board than First-Last-ZCTA and maintains perfect coverage. In the future, more sophisticated weighting schemes may improve performance. For example, it is possible that certain models perform well in certain geographies, and geography-specific weights could be constructed. However, since the PPP sample does not cover all ZCTAs, and does not have a statistically significant number of observations for every ZCTA, I do not attempt this exercises.
+
+
+\subsection{Lookup Table}
+
+Finally, I investigate the ideal case by creating a lookup table from the L2 data. If one had perfect information, i.e. knew all the names and races of everyone living in every ZCTA, the optimal prediction for a given name and ZCTA is simply the count of people in that ZCTA with that name that are Asian, Black, Hispanic, or White divided by the total number of people with that name. However, since the L2 data is not sufficiently large (especially for Asian and Black) to calculate probabilities at the ZCTA-level, I instead create the lookup table based on first and last name alone and incorporate ZCTA information using naive Bayes. The same name cleaning and filtering procedures as described in \ref{subsec:bisg} are applied to the full name (first name + last name). Then,
+
+\begin{align*}
+    P(r | n, g) = \frac{P(r | n) \times P(g | r)}{\sum_{r=1}^{4} P(r | n) * P(g | r)}
+\end{align*}
+
+Table \ref{t:lookup_stats_max} reports the performance of the lookup table.
+
+\begin{table}[H]
+    \caption{Lookup Stats (Max)}
+    \label{t:lookup_stats_max}
+    \centering
+    \include{tables/lookup_stats_max.tex}
+\end{table}
+
+Compared to iBIFSG, the lookup table has much poorer coverage (as expected), but exhibits higher F1 scores for Asian (6.2\%), and Hispanic (6.2\%). However, Black (-11\%) and White (-1.2\%) actually regress. A few explanations are possible. One is that the statistics for the lookup table are more noisy since it is only able to make predictions for a small number of observations. Another is that the names that have enough samples (at least 30) to appear in the data are names that are neither uniquely Black nor White. That is to say, there are more ambiguous names like ``Dorothy Brown'' than relatively more clear-cut names like ``Onyiuke Anthonia'' due to lack of data.
+
+\section{Discussion}
+
+Can we trust race prediction? Even with perfect information, using only name and location inherently limits the accuracy of available models. For instance, a Black person with an ambiguous name (``Barbara Jackson'', ``Ashley Jackson'') living in New York City will likely always be mislabeled by such models as White. Similarly, many Filipinos with Hispanic-sounding names (such as ``Maria Cruz Santos'') will be labeled as Hispanic. However, it is clear that models have the ability to achieve very high performance. iBIFSG and the resulting ensemble already show significant improvements over existing solutions that have been used in such critical contexts as fair lending analysis, and more data or advances in architectures could allow models to approach an acceptable upper bound in performance. For instance, \cite{hu2021} use a Dual-LSTM architecture to improve gender classification. Voter data is inherently not representative, as not everybody is registered to vote, especially Blacks and Hispanics \cite{sood2018}. A waterfall architecture, where separate models are trained with respect varying levels of granularity (for example, first name + last name + income + tract \( \rightarrow \) first name + last name + ZCTA \( \rightarrow \) first name + last name), and combined at the end, could maximize both performance and coverage.
+
+
+\singlespacing
+\setlength\bibsep{0pt}
+\bibliographystyle{abbrvnat}
+\bibliography{race_ml_bib}
+
+
+\clearpage
+
+\onehalfspacing
+\section*{Tables} \label{sec:tab}
+\addcontentsline{toc}{section}{Tables}
+
+\begin{table}[H]
+    \caption{Rethnicity Stats (Max)}
+    \label{t:reth_stats_max}
+    \centering
+    \include{tables/reth_stats_max.tex}
+\end{table}
+
+\begin{table}[H]
+    \caption{Ethnicolr Stats (Max)}
+    \label{t:eth_stats_max}
+    \centering
+    \include{tables/eth_stats_max.tex}
+\end{table}
+
+
+
+\clearpage
+
+% \section*{Figures} \label{sec:fig}
+% \addcontentsline{toc}{section}{Figures}
+
+
+
+
+
+\clearpage
+
+% \section*{Appendix A. Placeholder} \label{sec:appendixa}
+% \addcontentsline{toc}{section}{Appendix A}
+
+
+
+\end{document}
