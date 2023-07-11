@@ -2,46 +2,102 @@ import polars as pl
 import torch
 import torch.optim as optim
 
-from data import FLZEmbedDataset
-from models import FLZEmbedBiLSTM
+from data import FLEmbedDataset, FLZEmbedBinaryDataset, FLZEmbedDataset
+from models import FLEmbedBiLSTM, FLZEmbedBiLSTM, FLZEmbedBiLSTMBinary
 from train import train_model
 from utils.constants import DEVICE, RACES, VALID_NAME_CHARS_LEN
 from utils.paths import FINAL_PATH
 
-HIDDEN_SIZE = 512
-EMBEDDING_DIM = 512
-
 
 def main():
-    train = pl.read_parquet(FINAL_PATH / "flz_dups_train.parquet")
+    train = pl.read_parquet(FINAL_PATH / "fl_imb_deduped_train.parquet").sample(
+        fraction=1, shuffle=True
+    )
 
-    # model 4
-    # to penalize false positive black and asian, weight getting white wrong more
-    # heavily. This is because the majority of false positive asian and black are
-    # predicting whites to be asian or black.
-    model = FLZEmbedBiLSTM(
+    model = FLEmbedBiLSTM(
         input_size=VALID_NAME_CHARS_LEN,
-        embedding_dim=EMBEDDING_DIM,
-        hidden_size=HIDDEN_SIZE,
+        embedding_dim=256,
+        hidden_size=128,
         output_size=len(RACES),
         dropout=0.2,
         num_layers=4,
     ).to(DEVICE)
-    opt = optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.001)
+    opt = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.001)
+    loss_function = torch.nn.NLLLoss(
+        weight=torch.tensor(
+            [3.98028843, 3.80350719, 1.72650826, 0.3440395], device=DEVICE
+        )
+    )
+
     train_model(
         model=model,
         opt=opt,
+        loss_function=loss_function,
         data=train,
-        dataset_cls=FLZEmbedDataset,
-        outname="flz_embed_bi_7",
+        dataset_cls=FLEmbedDataset,
+        outname="fl_embed_bi_1",
         overwrite=True,
         batch_size=512,
         clip_value=None,
-        n_epochs=15,
-        class_weights=torch.tensor([1, 1, 1, 2], dtype=torch.float, device=DEVICE),
-        dropout=0.2,
-        sample="flz",
+        n_epochs=20,
     )
+
+    # train = pl.read_parquet(FINAL_PATH / "flz_asian_train.parquet").sample(
+    #     fraction=1, shuffle=True
+    # )
+
+    # model 11
+    # model = FLZEmbedBiLSTMBinary(
+    #     input_size=VALID_NAME_CHARS_LEN,
+    #     embedding_dim=512,
+    #     hidden_size=128,
+    #     output_size=1,
+    #     dropout=0.2,
+    #     num_layers=4,
+    # ).to(DEVICE)
+    # opt = optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.001)
+    # loss_function = torch.nn.BCELoss()
+
+    # train_model(
+    #     model=model,
+    #     opt=opt,
+    #     loss_function=loss_function,
+    #     data=train,
+    #     dataset_cls=FLZEmbedBinaryDataset,
+    #     outname="flz_embed_bi_11asian",
+    #     overwrite=True,
+    #     batch_size=256,
+    #     clip_value=None,
+    #     n_epochs=20,
+    #     dropout=0.2,
+    # )
+
+    # train = pl.read_parquet(FINAL_PATH / "flz_dups_train.parquet").sample(
+    #     fraction=1, shuffle=True
+    # )
+    # model = FLZEmbedBiLSTM(
+    #     input_size=VALID_NAME_CHARS_LEN,
+    #     embedding_dim=512,
+    #     hidden_size=128,
+    #     output_size=len(RACES),
+    #     dropout=0.2,
+    #     num_layers=4,
+    # ).to(DEVICE)
+    # opt = optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.001)
+    # loss_function = torch.nn.NLLLoss()
+
+    # train_model(
+    #     model=model,
+    #     opt=opt,
+    #     loss_function=loss_function,
+    #     data=train,
+    #     dataset_cls=FLZEmbedDataset,
+    #     outname="flz_embed_bi_12",
+    #     overwrite=True,
+    #     batch_size=512,
+    #     clip_value=None,
+    #     n_epochs=20,
+    # )
 
 
 if __name__ == "__main__":
