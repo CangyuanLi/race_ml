@@ -1,7 +1,124 @@
+import string
+
+import pandas as pd
+import polars as pl
 import torch
 import torch.nn as nn
 
 from utils.constants import DEVICE
+from utils.paths import DIST_PATH
+
+
+class BayesianBaseModel:
+    def __init__(self, df: pl.DataFrame):
+        self._df = df
+        self._races = ("asian", "black", "hispanic", "white")
+
+        self._PROB_RACE_GIVEN_FIRST_NAME = pl.read_csv(
+            DIST_PATH / "prob_race_given_first_name.csv"
+        )
+        self._PROB_FIRST_NAME_GIVEN_RACE = pl.read_csv(
+            DIST_PATH / "prob_first_name_given_race.csv"
+        )
+        self._PROB_RACE_GIVEN_LAST_NAME = pl.read_csv(
+            DIST_PATH / "prob_race_given_last_name.csv"
+        )
+        self._PROB_ZCTA_GIVEN_RACE = self._normalize_zctas(
+            pl.read_csv(DIST_PATH / "prob_zcta_given_race_2010.csv"), "zcta5"
+        )
+        self._PROB_RACE_GIVEN_ZCTA = self._normalize_zctas(
+            pl.read_csv(DIST_PATH / "prob_race_given_zcta_2010.csv"), "zcta5"
+        )
+
+    @staticmethod
+    def _remove_chars(expr: pl.Expr) -> pl.Expr:
+        unwanted_chars = string.digits + string.punctuation + string.whitespace
+        for char in unwanted_chars:
+            expr = expr.str.replace_all(char, "", literal=True)
+
+        return expr
+
+    def _normalize_names(self, df: pl.DataFrame, col: str | list[str]) -> pl.DataFrame:
+        df = self._df.with_columns(
+            pl.col(col)
+            .pipe(self._remove_chars)
+            .str.to_uppercase()
+            .str.replace_all(r"\s?J\.*?R\.*\s*?$", "")
+            .str.replace_all(r"\s?S\.*?R\.*\s*?$", "")
+            .str.replace_all(r"\s?III\s*?$", "")
+            .str.replace_all(r"\s?IV\s*?$", "")
+        )
+
+        return df
+
+    @staticmethod
+    def _normalize_zctas(df: pl.DataFrame, col: str) -> pl.DataFrame:
+        return df.with_columns(pl.col(col).cast(str).str.zfill(5))
+
+
+class BIFSG(BayesianBaseModel):
+    def __init__(self, df: pl.DataFrame):
+        super().__init__(df)
+
+    def get_probabilities(
+        self, first_name: str, last_name: str, zcta: str
+    ) -> pl.DataFrame:
+        df = self._normalize_names(self._df, [first_name, last_name])
+        df = self._normalize_zctas(df, zcta)
+
+        prob_first_name_given_race = df.join(
+            self._PROB_FIRST_NAME_GIVEN_RACE,
+            left_on=first_name,
+            right_on="name",
+            how="left",
+        ).select(self._races)
+
+        prob_race_given_last_name = df.join(
+            self._PROB_RACE_GIVEN_LAST_NAME,
+            left_on=last_name,
+            right_on="name",
+            how="left",
+        ).select(self._races)
+
+        prob_zcta_given_race = df.join(
+            self._PROB_ZCTA_GIVEN_RACE, left_on=zcta, right_on="zcta5", how="left"
+        ).select(self._races)
+
+        bifsg_numer = (
+            prob_first_name_given_race
+            * prob_race_given_last_name
+            * prob_zcta_given_race
+        )
+        bifsg_denom = bifsg_numer.sum(axis=1)
+        bifsg_probs = bifsg_numer / bifsg_denom
+
+        return pl.concat([df, bifsg_probs], how="horizontal")
+
+
+class BISG(BayesianBaseModel):
+    def __init__(self, df: pl.DataFrame):
+        super().__init__(df)
+
+    def get_probabilities(self, last_name: str, zcta: str) -> pl.DataFrame:
+        df = self._normalize_names(self._df, last_name)
+        df = self._normalize_zctas(df, zcta)
+
+        prob_race_given_last_name = df.join(
+            self._PROB_RACE_GIVEN_LAST_NAME,
+            left_on=last_name,
+            right_on="name",
+            how="left",
+        ).select(self._races)
+
+        prob_zcta_given_race = df.join(
+            self._PROB_ZCTA_GIVEN_RACE, left_on=zcta, right_on="zcta5", how="left"
+        ).select(self._races)
+
+        bisg_numer = prob_race_given_last_name * prob_zcta_given_race
+        bisg_denom = bisg_numer.sum(axis=1)
+        bisg_probs = bisg_numer / bisg_denom
+
+        return pl.concat([df, bisg_probs], how="horizontal")
 
 
 class FLZEmbedBiLSTMBinary(nn.Module):
@@ -13,7 +130,7 @@ class FLZEmbedBiLSTMBinary(nn.Module):
         output_size: int,
         dropout: float = 0,
         num_layers: int = 1,
-        **lstm_kwargs
+        **lstm_kwargs,
     ):
         super(FLZEmbedBiLSTMBinary, self).__init__()
 
@@ -46,7 +163,7 @@ class FLZEmbedBiLSTMBinary(nn.Module):
             **lstm_kwargs,
         )
         self.h2o = nn.Linear(hidden_size * 4 + 4, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
+        self.sigmoid = nn.Sigmoid()
 
         self.init_args = {
             "input_size": input_size,
@@ -69,7 +186,7 @@ class FLZEmbedBiLSTMBinary(nn.Module):
         combined = torch.cat((fn_output, ln_output, pct), dim=1)
 
         output = self.h2o(combined)
-        output: torch.Tensor = self.softmax(output)
+        output: torch.Tensor = self.sigmoid(output)
 
         return output, hidden
 
@@ -93,7 +210,7 @@ class FLZEmbedBiLSTM(nn.Module):
         output_size: int,
         dropout: float = 0,
         num_layers: int = 1,
-        **lstm_kwargs
+        **lstm_kwargs,
     ):
         super(FLZEmbedBiLSTM, self).__init__()
 
@@ -243,7 +360,7 @@ class FLEmbedBiLSTM(nn.Module):
         output_size: int,
         dropout: float = 0,
         num_layers: int = 1,
-        **lstm_kwargs
+        **lstm_kwargs,
     ):
         super(FLEmbedBiLSTM, self).__init__()
 
@@ -277,6 +394,15 @@ class FLEmbedBiLSTM(nn.Module):
         )
         self.h2o = nn.Linear(hidden_size * 4, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
+
+        self.init_args = {
+            "input_size": input_size,
+            "embedding_dim": embedding_dim,
+            "hidden_size": hidden_size,
+            "output_size": output_size,
+            "dropout": dropout,
+            "num_layers": self.num_layers,
+        } | lstm_kwargs
 
     def forward(self, fn, ln, hidden):
         embedded_fn = self.fn_embedding(fn)
