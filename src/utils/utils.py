@@ -1,7 +1,11 @@
-import concurrent.futures
-from collections.abc import Iterable
-from typing import Callable, Literal
+from __future__ import annotations
 
+import concurrent.futures
+import math
+from collections.abc import Iterable
+from typing import Callable, Literal, Optional
+
+import polars as pl
 import torch
 import tqdm
 
@@ -19,6 +23,67 @@ def encode_name(
         encoded[idx][valid_name_chars_dict[c]] = 1
 
     return encoded
+
+
+def normalize(lst: list[float]) -> list[float]:
+    sum_ = sum(lst)
+
+    return [x / sum_ for x in lst]
+
+
+def softmax(lst: list[float]) -> list[float]:
+    lst = [math.exp(x) for x in lst]
+    sum_ = sum(lst)
+
+    return [x / sum_ for x in lst]
+
+
+def make_representative(
+    df: pl.DataFrame,
+    distribution: dict[str, float] = {
+        "asian": 0.059,
+        "black": 0.126,
+        "hispanic": 0.189,
+        "white": 0.593,
+    },
+    n: Optional[int] = None,
+) -> pl.DataFrame:
+    normalized = normalize(distribution.values())
+    distribution = {k: v for k, v in zip(distribution.keys(), normalized)}
+
+    value_counts = {
+        race: count
+        for race, count in df.get_column("race_ethnicity").value_counts().iter_rows()
+    }
+    allowed = []
+    for race, count in value_counts.items():
+        if race not in distribution:
+            continue
+
+        if distribution[race] == 0:
+            allowed.append(0)
+        else:
+            allowed.append(count // distribution[race])
+
+    allowed = min(allowed)
+
+    if n is not None:
+        if n < allowed:
+            allowed = n
+
+    distribution_counts = {
+        race: math.floor(allowed * pct) for race, pct in distribution.items()
+    }
+
+    dfs = []
+    for race, count in distribution_counts.items():
+        race_df = df.filter(pl.col("race_ethnicity") == race)
+        if count > race_df.shape[0]:
+            count = race_df.shape[0]
+
+        dfs.append(race_df.sample(count, seed=1))
+
+    return pl.concat(dfs, how="vertical")
 
 
 def encode_race(
@@ -60,7 +125,7 @@ def run_concurrent(
     how: ConcurrentStrategy = "process",
     chunksize: int = 1,
     *args,
-    **kwargs
+    **kwargs,
 ) -> list[object]:
     lst = list(iterable)
 
