@@ -1,10 +1,10 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import polars as pl
-import tqdm
 
 from utils.paths import CW_PATH, L2_PATH
-from utils.utils import coerce_to_ascii
 
 # https://www.census.gov/topics/population/race/about.html
 
@@ -27,6 +27,33 @@ ASIAN_DESCRIPTIONS = {
     "unknown asian",
     "vietnamese",
 }
+
+# https://www.census.gov/quickfacts/fact/note/US/RHI625222
+# "White" refers to a person having origins in any of the original peoples of Europe,
+# the Middle East or North Africa. It includes people who indicated their race(s) as
+# "White" or reported entries such as German, Italian, Lebanese, Arab, Moroccan, or
+# Caucasian.
+WHITE_DESCRIPTIONS = {
+    "german",
+    "english/welsh",
+    "irish",
+    "italian",
+    "scots",
+    "french",
+    "swedish",
+    "polish",
+    "norwegian",
+    "dutch (netherlands)",
+    "hungarian",
+    "austrian",
+    "czech",
+    "finnish",
+    "swiss",
+}
+
+
+def coerce_to_ascii(string: str) -> str:
+    return string.encode("ascii", errors="ignore").decode("ascii")
 
 
 def clean_data(file: Path):
@@ -78,15 +105,25 @@ def filter_data(file: Path) -> pl.DataFrame:
     # https://www.pewresearch.org/short-reads/2022/09/15/who-is-hispanic/
     race_ethnicity_mapper = {
         "east asian": "asian",
+        "korean": "asian",
         "african or af-am self reported": "black",
         "white self reported": "white",
         "other undefined race": "other",
-        "native american (self reported)": "other",
+        "native american (self reported)": "aian",
     }
     df = (
         pl.scan_parquet(file)
         .select(pl.exclude("ethnic_code"))
         .with_columns(pl.col("race_ethnicity").map_dict(race_ethnicity_mapper))
+        .with_columns(
+            pl.when(
+                (pl.col("race_ethnicity").is_null())
+                | (pl.col("race_ethnicity") == "null")
+            )
+            .then(False)
+            .otherwise(True)
+            .alias("is_self_reported")
+        )
         .with_columns(
             race_ethnicity=pl.when(pl.col("ethnic_group") == "east and south asian")
             .then("asian")
@@ -100,6 +137,13 @@ def filter_data(file: Path) -> pl.DataFrame:
             .otherwise(pl.col("race_ethnicity")),
         )
         .with_columns(
+            race_ethnicity=pl.when(
+                pl.col("ethnic_description").str.contains("|".join(WHITE_DESCRIPTIONS))
+            )
+            .then("white")
+            .otherwise(pl.col("race_ethnicity"))
+        )
+        .with_columns(
             race_ethnicity=pl.when(pl.col("ethnic_description") == "hispanic")
             .then("hispanic")
             .otherwise(pl.col("race_ethnicity")),
@@ -109,11 +153,10 @@ def filter_data(file: Path) -> pl.DataFrame:
             last_name=pl.col("last_name").apply(coerce_to_ascii),
         )
         .filter(
-            ~(
-                (pl.col("race_ethnicity") == "other")
-                | (pl.col("race_ethnicity").is_null())
-            )
+            pl.col("race_ethnicity").is_not_null()
+            #                 (pl.col("race_ethnicity") == "other")
         )
+        .filter(~(pl.col("race_ethnicity") == "null"))
         .select(
             "first_name",
             "last_name",
@@ -122,6 +165,7 @@ def filter_data(file: Path) -> pl.DataFrame:
             "zip",
             "census_tract",
             "county_fips",
+            "is_self_reported",
         )
         .collect()
     )
@@ -131,20 +175,24 @@ def filter_data(file: Path) -> pl.DataFrame:
 
 def main():
     # Read files
-    files = list((L2_PATH / "intermediate").glob("*.parquet"))
-    for file in tqdm.tqdm(files):
-        clean_data(file)
+    # files = list((L2_PATH / "intermediate").glob("*.parquet"))
+    # for file in tqdm.tqdm(files):
+    #     clean_data(file)
 
     # Subset to rows that have race
     files = list((L2_PATH / "clean").glob("*.parquet"))
     dfs = []
-    for file in tqdm.tqdm(files):
+    for file in files:
         dfs.append(filter_data(file))
     df: pl.DataFrame = pl.concat(dfs)
 
     # Final cleaning
 
-    sa_fips_cw = pl.read_parquet(CW_PATH / "state_abbrev_to_fips.parquet")
+    sa_fips_cw = (
+        pl.read_csv(CW_PATH / "state_fips.csv")
+        .select(pl.exclude("state"))
+        .with_columns(pl.col("state_fips").cast(str).str.zfill(2))
+    )
     df = df.join(sa_fips_cw, on="state_abbrev", how="left").with_columns(
         county_fips=pl.col("state_fips") + pl.col("county_fips"),
     )
