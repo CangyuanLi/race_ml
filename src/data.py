@@ -155,6 +155,81 @@ class FLZEmbedDataset(Dataset):
         return fn, ln, pct, race
 
 
+class FLZEmbedBinaryDataset(Dataset):
+    def __init__(self, df: pl.DataFrame):
+        self.data = self.prepare_data(df)
+
+    @staticmethod
+    def prepare_data(
+        df: pl.DataFrame,
+    ) -> list[tuple[str, str, float, float, float, float, str]]:
+        res = [
+            (fn, ln, pa, pb, ph, pw, r)
+            for fn, ln, pa, pb, ph, pw, r in zip(
+                df.get_column("first_name").to_list(),
+                df.get_column("last_name").to_list(),
+                df.get_column("pct_asian_zcta").to_list(),
+                df.get_column("pct_black_zcta").to_list(),
+                df.get_column("pct_hispanic_zcta").to_list(),
+                df.get_column("pct_white_zcta").to_list(),
+                df.get_column("is_race").to_list(),
+                strict=True,
+            )
+        ]
+
+        return res
+
+    @staticmethod
+    def encode_name(name: str) -> torch.Tensor:
+        return torch.tensor(
+            [VALID_NAME_CHARS_DICT[char] for char in name], device=DEVICE
+        )
+
+    @staticmethod
+    def pad_collate(batch):
+        fns = []
+        fn_lengths = []
+        lns = []
+        ln_lengths = []
+        pcts = []
+        races = []
+        for fn, ln, pct, is_race in batch:
+            fns.append(fn)
+            fn_lengths.append(fn.size()[0])
+            lns.append(ln)
+            ln_lengths.append(ln.size()[0])
+            pcts.append(pct)
+            races.append(is_race)
+
+        fns = pad_sequence(fns, batch_first=True)
+        lns = pad_sequence(lns, batch_first=True)
+        pcts = torch.stack(pcts)
+        races = torch.hstack(races)
+
+        return fns, lns, pcts, races
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        (
+            first_name,
+            last_name,
+            asian_pct,
+            black_pct,
+            hisp_pct,
+            white_pct,
+            race,
+        ) = self.data[index]
+
+        fn = self.encode_name(first_name)
+        ln = self.encode_name(last_name)
+        pct = torch.tensor((asian_pct, black_pct, hisp_pct, white_pct), device=DEVICE)
+        race = torch.tensor([race], dtype=torch.float, device=DEVICE)
+
+        return fn, ln, pct, race
+
+
 class FirstLastZctaDataset(Dataset):
     def __init__(self, data: pl.DataFrame):
         self.data = self.prepare_data(data)
