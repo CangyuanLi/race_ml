@@ -17,6 +17,7 @@ from utils.paths import FINAL_PATH
 def train_model(
     model: torch.nn.Module,
     opt: torch.optim.Optimizer,
+    loss_function,
     data: pl.DataFrame,
     dataset_cls: Dataset,
     outname: str = "model",
@@ -25,6 +26,7 @@ def train_model(
     clip_value: Optional[float] = 1,
     class_weights: Optional[torch.Tensor] = None,
     n_epochs: int = 1,
+    start_epoch: int = 1,
     **kwargs,
 ):
     # Prepare logging and directories
@@ -32,6 +34,8 @@ def train_model(
     outdir.mkdir(exist_ok=overwrite)
 
     LOGGER.addHandler(logging.FileHandler(outdir / "train.log", mode="w"))
+
+    loss_fn_name = loss_function._get_name()
 
     with open(outdir / "hyperparameters.json", "w") as f:
         json.dump(
@@ -44,7 +48,7 @@ def train_model(
                 else class_weights.tolist(),
                 "lr_scheduler": "LinearLR",
                 "lr_scheduler_args": "default",
-                "loss_function": "NLLLoss",
+                "loss_function": loss_function._get_name(),
                 "optimizer": opt.__class__.__name__,
                 "model": model.__class__.__name__,
             }
@@ -70,11 +74,9 @@ def train_model(
     )
     n_batches = len(dataloader)
 
-    loss_function = nn.NLLLoss(weight=class_weights)
-
     scheduler = optim.lr_scheduler.LinearLR(opt)
 
-    for epoch in range(1, n_epochs + 1):
+    for epoch in range(start_epoch, n_epochs + 1):
         logging.info(f"----epoch {epoch}----")
         total_loss = 0
         total_time = 0
@@ -90,10 +92,13 @@ def train_model(
 
             inputs = tup[:-1]
             race = tup[-1]
+            if loss_fn_name == "BCELoss":
+                race = race.unsqueeze(1)
 
             model.zero_grad(set_to_none=True)
             hidden = model.init_hidden(current_batch_size)
             output, _ = model(*inputs, hidden)
+
             loss: torch.Tensor = loss_function(output, race)
             loss.backward()
             total_loss += loss
